@@ -160,8 +160,6 @@ async def stoplivetranslation(ctx):
     else:
         await ctx.send("Live translation mode is not active in this channel.")
 
-from nltk.tokenize import sent_tokenize  # Import at the top of your file
-
 @bot.event
 async def on_message(message):
     """Listen for messages and translate them in live translation mode."""
@@ -418,17 +416,20 @@ async def languagecodes_command(ctx):
 HELP_MESSAGE = """
 ## **Hello, I'm vioLa, a translation Discord Bot!**
 
+<argument> = required | [argument] = optional
+
 ### **Slash Commands (output only to you!):**
 1. `/setlanguage <target_lang>`: Set your default target language for translations.
 2. `/translate <text> [source_lang] [target_lang]`: Translate a specific text with optional source and target languages. Omitting the `[source_lang]` method will detect the language for you, while omitting the `[target_lang]` will default it to your set language.
 3. `/languagecodes`: View all supported language codes and their corresponding languages privately.
 4. `/help`: Display this help message privately.
 ### **Bot Commands (outputs to the whole server!):**
-1. `!translate <text> [source_lang] [target_lang]`: Same thing as above, but publicly! Reply to a message without the `<text>` to translate that message.
-2. `!startlivetranslation <target_lang>`: Start live translation mode in the current channel. Messages will be translated to the specified target language.
-3. `!stoplivetranslation`: Stop live translation mode in the current channel.
-4. `!languagecodes`: View all supported language codes and their corresponding languages publicly.
-5. `!help`: Display this help message publicly.
+1. `!translate [source_lang] [target_lang]`: Reply to a message to translate that message. Omitting the `[source_lang]` method will detect the language for you, while omitting the `[target_lang]` will default it to your set language.
+2. `!translate <source_lang> <target_lang> <text>`: Publicly translate something to the channel.
+3. `!startlivetranslation <target_lang>`: Start live translation mode in the current channel. Messages will be translated to the specified target language.
+4. `!stoplivetranslation`: Stop live translation mode in the current channel.
+5. `!languagecodes`: View all supported language codes and their corresponding languages publicly.
+6. `!help`: Display this help message publicly.
 ### **Live Translation:**
 - When live translation is active, all messages in the channel will be translated to the set target language.
 - Error threads will guide users to retry with the correct source language if an issue arises.
