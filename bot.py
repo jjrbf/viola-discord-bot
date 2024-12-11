@@ -508,15 +508,16 @@ async def languagecodes_command(ctx):
 
 # Help message content
 HELP_MESSAGE = """
-## **Hello, I'm vioLa, a translation Discord Bot!**
+## **Hello, I'm **vioLa**, a translation Discord Bot!**
 
 ***<argument> = required | [argument] optional***
-### **Slash Commands (output only to you!):**
+### **Slash Commands (outputs only to you!):**
 1. `/setlanguage <target_lang>`: Set your default target language for translations.
 2. `/translate <text> [source_lang] [target_lang]`: Translate a specific text with optional source and target languages. Omitting the `[source_lang]` method will detect the language for you, while omitting the `[target_lang]` will default it to your set language.
 3. `/languagecodes`: View all supported language codes and their corresponding languages privately.
 4. `/slangterms <language_code>`: Show all supported slang terms for a specific language code privately.
 5. `/help`: Display this help message privately.
+6. `/about`: Learn more about vioLa!
 ### **Bot Commands (outputs to the whole server!):**
 1. `!translate <text> [source_lang] [target_lang]`: Same thing as above, but publicly! Reply to a message without the `<text>` to translate that message.
 2. `!startlivetranslation <target_lang>`: Start live translation mode in the current channel. Messages will be translated to the specified target language.
@@ -531,6 +532,34 @@ HELP_MESSAGE = """
 - Respond to error threads with a language code to retry translations if the initial attempt fails.
 """
 
+DISCLAIMER_MESSAGE = """
+## Hi there! I'm **vioLa**, a translation Discord Bot!!
+### **About Me:**
+Here's some important information about how I work:
+- **What I Do**:  
+  I translate text messages between languages using AI models. I also support basic slang translations to make conversations ever so slightly relatable!
+- **How I Work**:  
+  I use pre-trained translation models (like MarianMT) to perform translations. These models are based on open-source datasets, ensuring fast and efficient translations. 
+### **Privacy:**
+Here's how I handle your data:
+- **Data Handling**:  
+  I process your messages temporarily in memory for translation purposes. I do not store or permanently save your messages.
+- **Sensitive Content**:  
+  Please don't share sensitive, confidential, or personally identifiable information. While I don't store data, your messages are processed in memory and could potentially appear in error logs.
+- **Message Visibility**:  
+  My translations and responses are visible in the channel or thread where they're posted unless explicitly set to be private (e.g., using slash commands). Use private commands for sensitive content.
+### **Disclaimers:**
+A few things to keep in mind:
+- **Accuracy of Translations**:  
+  I do my best, but I'm not perfect! My translations might not always be accurate or contextually correct. For important translations, double-check independently.
+- **Slang Terms and Cultural Nuances**:  
+  I support predefined slang translations to make chatting more fun! But these mappings might not always reflect accurate or universally accepted equivalents, so use them with discretion.
+- **User Responsibility**:  
+  By using me, you acknowledge that translations and custom configurations are at your own risk. My creators aren't responsible for misinterpretations or misuse of translations.
+- **Opt-Out Options**:  
+  If you don't want your messages translated during live translation mode, let your server moderators know or avoid posting in channels where I'm active.
+"""
+  
 # Override the default help command
 bot.remove_command('help')  # Remove the default help command
 @bot.command(name="help", help="Displays a list of bot functionalities.")
@@ -541,6 +570,11 @@ async def custom_help(ctx):
 @bot.tree.command(name="help", description="Display the bot's functionalities and commands.")
 async def help_command(interaction: discord.Interaction):
     await interaction.response.send_message(HELP_MESSAGE, ephemeral=True)
+
+# Bot info command slash /about
+@bot.tree.command(name="about", description="Displays more information about vioLa and its usage")
+async def help_command(interaction: discord.Interaction):
+    await interaction.response.send_message(DISCLAIMER_MESSAGE, ephemeral=True)
 
 # Run the bot
 if __name__ == "__main__":
