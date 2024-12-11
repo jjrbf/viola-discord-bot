@@ -3,11 +3,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from transformers import MarianMTModel, MarianTokenizer
-from langdetect import detect, DetectorFactory
-from langdetect.lang_detect_exception import LangDetectException
-
-# Ensure consistent language detection results
-DetectorFactory.seed = 0
+from langdetect import detect, LangDetectException
 
 # Load environment variables
 load_dotenv()
@@ -18,36 +14,89 @@ intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Load model and tokenizer for the specified language pair
-current_model = None
-current_tokenizer = None
-default_languages = {}  # Store default target languages for each user
-model_cache = {} # Cache for storing models and tokenizers
-
-@bot.event
-async def on_ready():
-    print(f"We have logged in as {bot.user}")
+# Cache for storing models and tokenizers
+model_cache = {}
+default_languages = {}
+active_translations = {}  # Track active translation modes by channel
 
 def get_model_and_tokenizer(source_lang, target_lang):
     """Retrieve the model and tokenizer from the cache or load them if not cached."""
     global model_cache
     model_key = f"{source_lang}-{target_lang}"
 
-    # Check if the model is already in the cache
     if model_key in model_cache:
         return model_cache[model_key]
 
-    # Load the model and tokenizer
     model_name = f"Helsinki-NLP/opus-mt-{source_lang}-{target_lang}"
     try:
         tokenizer = MarianTokenizer.from_pretrained(model_name)
         model = MarianMTModel.from_pretrained(model_name)
-        model_cache[model_key] = (model, tokenizer)  # Cache the model and tokenizer
+        model_cache[model_key] = (model, tokenizer)
         print(f"Loaded and cached model for {source_lang} -> {target_lang}.")
         return model, tokenizer
     except Exception as e:
         print(f"Error loading model {model_name}: {e}")
         return None, None
+
+@bot.event
+async def on_ready():
+    print(f"We have logged in as {bot.user}")
+
+@bot.command()
+async def startlivetranslation(ctx, target_lang: str):
+    """Start live translation mode in the current channel."""
+    channel_id = ctx.channel.id
+    active_translations[channel_id] = target_lang
+    await ctx.send(f"Live translation mode activated. Messages will be translated to {target_lang}.")
+
+@bot.command()
+async def stoplivetranslation(ctx):
+    """Stop live translation mode in the current channel."""
+    channel_id = ctx.channel.id
+    if channel_id in active_translations:
+        del active_translations[channel_id]
+        await ctx.send("Live translation mode deactivated.")
+    else:
+        await ctx.send("Live translation mode is not active in this channel.")
+
+@bot.event
+async def on_message(message):
+    """Listen for messages and translate them in live translation mode."""
+    if message.author == bot.user:
+        return
+
+    channel_id = message.channel.id
+    if channel_id in active_translations:
+        target_lang = active_translations[channel_id]
+
+        try:
+            # Detect the source language
+            source_lang = detect(message.content)
+            if source_lang == target_lang:
+                return  # Skip if the source and target languages are the same
+
+            # Get the model and tokenizer
+            model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
+            if model is None or tokenizer is None:
+                await message.channel.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded.")
+                return
+
+            # Translate the message
+            inputs = tokenizer(message.content, return_tensors="pt", padding=True)
+            translated = model.generate(**inputs)
+            translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+
+            # Create a thread with the translation
+            thread_title = f"Translation: {source_lang} -> {target_lang}"
+            translation_thread = await message.create_thread(name=thread_title)
+            await translation_thread.send(f"Translated message: {translation}")
+        except LangDetectException:
+            await message.channel.send("Could not detect the language of the input text. Skipping.")
+        except Exception as e:
+            await message.channel.send(f"Error during translation: {e}")
+
+    # Ensure other bot commands are processed
+    await bot.process_commands(message)
 
 @bot.command()
 async def setlanguage(ctx, target_lang: str):
