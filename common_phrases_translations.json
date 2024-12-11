@@ -1,0 +1,91 @@
+{
+    "en-es": {
+      "lol": "jaja",
+      "brb": "vuelvo enseguida",
+      "idk": "no sé",
+      "omg": "oh dios mío",
+      "wyd": "qué haces",
+      "tbh": "para ser honesto",
+      "smh": "sacudiendo mi cabeza"
+    },
+    "es-en": {
+      "jaja": "lol",
+      "vuelvo enseguida": "brb",
+      "no sé": "idk",
+      "oh dios mío": "omg",
+      "qué haces": "wyd",
+      "para ser honesto": "tbh",
+      "sacudiendo mi cabeza": "smh"
+    },
+    "en-fr": {
+      "lol": "mdr",
+      "brb": "à bientôt",
+      "idk": "je sais pas",
+      "omg": "oh mon dieu",
+      "wyd": "que fais-tu",
+      "tbh": "pour être honnête",
+      "smh": "secoue ma tête"
+    },
+    "fr-en": {
+      "mdr": "lol",
+      "à bientôt": "brb",
+      "je sais pas": "idk",
+      "oh mon dieu": "omg",
+      "que fais-tu": "wyd",
+      "pour être honnête": "tbh",
+      "secoue ma tête": "smh"
+    },
+    "en-ru": {
+      "lol": "лол",
+      "brb": "скоро вернусь",
+      "idk": "не знаю",
+      "omg": "о боже мой",
+      "wyd": "что делаешь",
+      "tbh": "честно говоря",
+      "smh": "качаю головой"
+    },
+    "ru-en": {
+      "лол": "lol",
+      "скоро вернусь": "brb",
+      "не знаю": "idk",
+      "о боже мой": "omg",
+      "что делаешь": "wyd",
+      "честно говоря": "tbh",
+      "качаю головой": "smh"
+    },
+    "en-ko": {
+      "lol": "ㅋㅋㅋ",
+      "brb": "곧 돌아올게",
+      "idk": "몰라요",
+      "omg": "세상에",
+      "wyd": "뭐해",
+      "tbh": "솔직히 말해서",
+      "smh": "머리를 흔들다"
+    },
+    "ko-en": {
+      "ㅋㅋㅋ": "lol",
+      "곧 돌아올게": "brb",
+      "몰라요": "idk",
+      "세상에": "omg",
+      "뭐해": "wyd",
+      "솔직히 말해서": "tbh",
+      "머리를 흔들다": "smh"
+    },
+    "en-tl": {
+      "Must be nice!": "Sana ol",
+      "brb": "babalik agad",
+      "idk": "ewan ko",
+      "omg": "grabe naman",
+      "wyd": "ano ginagawa mo",
+      "tbh": "sa totoo lang"
+    },
+    "tl-en": {
+      "sana ol": "must be nice",
+      "babalik agad": "brb",
+      "ewan ko": "idk",
+      "grabe naman": "omg",
+      "ano ginagawa mo": "wyd",
+      "sa totoo lang": "tbh"
+    }
+  }
+  
