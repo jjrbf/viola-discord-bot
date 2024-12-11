@@ -95,7 +95,7 @@ async def translate(interaction: discord.Interaction, text: str, source_lang: st
         model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
         if model is None or tokenizer is None:
             await interaction.followup.send(
-                f"Translation model for {source_lang} -> {target_lang} could not be loaded."
+                f"Translation model for {source_lang} -> {target_lang} could not be loaded or is unsupported. Try setting a source and target language manually."
             )
             return
 
@@ -204,7 +204,7 @@ async def on_message(message):
             # Get the model and tokenizer
             model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
             if model is None or tokenizer is None:
-                error_msg = f"Translation model for {source_lang} -> {target_lang} could not be loaded."
+                error_msg = f"Translation model for {source_lang} -> {target_lang} could not be loaded or is unsupported."
                 error_thread = await message.create_thread(name=f"Error: {error_msg}")
                 await error_thread.send(f"Translating: {message.content}")
                 await error_thread.send(f"{error_msg}\n\nReply to this message with a new source language (e.g., 'en').")
@@ -287,7 +287,7 @@ async def on_message_edit(before, after):
                 if target_lang:
                     model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
                     if model is None or tokenizer is None:
-                        await error_thread.send(f"Model for {source_lang} -> {target_lang} could not be loaded. Try a different source language.")
+                        await error_thread.send(f"Model for {source_lang} -> {target_lang} could not be loaded or is unsupported. Try setting a source and target language manually.")
                         return
 
                     # Translate and send the result
@@ -309,7 +309,7 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
     if target_lang is None:
         target_lang = default_languages.get(user_id)
         if target_lang is None:
-            await ctx.send("Please set a default target language using !setlanguage <target_lang> or specify a target language in the command.")
+            await ctx.send("Please set a default target language using /setlanguage <target_lang> or specify a target language in the command.")
             return
 
     # If the command is a reply, get the original message
@@ -336,7 +336,7 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
         # Get the model and tokenizer (using the cache)
         model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
         if model is None or tokenizer is None:
-            await ctx.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded.")
+            await ctx.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded or is unsupported. Try setting a source and target language manually.")
             return
 
         # Tokenize and translate
