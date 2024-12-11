@@ -5,10 +5,15 @@ from discord.ext import commands
 from discord import app_commands
 from transformers import MarianMTModel, MarianTokenizer
 from langdetect import detect, LangDetectException
+import nltk
+from nltk.tokenize import sent_tokenize
 
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+
+# Download the punkt tokenizer before starting the bot
+nltk.download("punkt_tab")
 
 # Set up bot
 intents = discord.Intents.default()
@@ -99,13 +104,21 @@ async def translate(interaction: discord.Interaction, text: str, source_lang: st
             )
             return
 
-        # Tokenize and translate
-        inputs = tokenizer(text, return_tensors="pt", padding=True)
-        translated = model.generate(**inputs)
-        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+        # Sentence segmentation
+        sentences = sent_tokenize(text)
+        translations = []
+
+        for sentence in sentences:
+            inputs = tokenizer(sentence, return_tensors="pt", padding=True)
+            translated = model.generate(**inputs)
+            translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+            translations.append(translation)
+
+        # Combine translations
+        final_translation = " ".join(translations)
 
         await interaction.followup.send(
-            f"Translation ({source_lang} -> {target_lang}): {translation}"
+            f"Translation ({source_lang} -> {target_lang}): {final_translation}"
         )
     except LangDetectException:
         await interaction.followup.send(
@@ -144,7 +157,8 @@ async def stoplivetranslation(ctx):
     else:
         await ctx.send("Live translation mode is not active in this channel.")
 
-# Event: Process live translations
+from nltk.tokenize import sent_tokenize  # Import at the top of your file
+
 @bot.event
 async def on_message(message):
     """Listen for messages and translate them in live translation mode."""
@@ -159,31 +173,21 @@ async def on_message(message):
 
     # Check if the message is in a thread
     if isinstance(message.channel, discord.Thread):
-        # Check if the thread's name starts with "Translation"
         if message.channel.name.startswith("Translation:") or message.channel.name.startswith("Error: Translation model for"):
-            # If the message is a language code, retry translation
             if len(message.content) == 2:  # Language codes are typically 2 characters
                 retry_language_code = message.content.lower()
-                parent_message_id = message.channel.id
                 try:
-                    # Fetch the first message in the thread
                     async for thread_message in message.channel.history(limit=2, oldest_first=True):
-                        # This should be the first message in the thread
                         if "Translating: " in thread_message.content:
                             first_message = thread_message.content.split("Translating: ")[1]
-                    # Fetch the second message in the thread
                     async for thread_message in message.channel.history(limit=3, oldest_first=True):
-                        # Check if the message contains an error message for translation failure
                         if "Translation model for" in thread_message.content:
-                            # Extract the target language from the error message (e.g., "Translation model for so -> en")
                             target_lang = thread_message.content.split("->")[-1].strip().split()[0]
-                            
-                            # Proceed with retrying the translation with the extracted target language
                             await retry_translation(
                                 thread=message.channel,
-                                original_message=first_message,  # This is the first message in the thread
+                                original_message=first_message,
                                 retry_language_code=retry_language_code,
-                                target_lang=target_lang,  # Set the correct target language from the error
+                                target_lang=target_lang,
                             )
                             return
                 except Exception as e:
@@ -196,12 +200,10 @@ async def on_message(message):
         target_lang = active_translations[channel_id]
 
         try:
-            # Detect the source language
             source_lang = detect(message.content)
             if source_lang == target_lang:
-                return  # Skip if the source and target languages are the same
+                return
 
-            # Get the model and tokenizer
             model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
             if model is None or tokenizer is None:
                 error_msg = f"Translation model for {source_lang} -> {target_lang} could not be loaded or is unsupported."
@@ -211,10 +213,16 @@ async def on_message(message):
                 error_threads[message.id] = error_thread
                 return
 
-            # Translate the message
-            inputs = tokenizer(message.content, return_tensors="pt", padding=True)
-            translated = model.generate(**inputs)
-            translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+            # Sentence segmentation and translation
+            sentences = sent_tokenize(message.content)
+            translations = []
+
+            for sentence in sentences:
+                inputs = tokenizer(sentence, return_tensors="pt", padding=True)
+                translated = model.generate(**inputs)
+                translations.append(tokenizer.decode(translated[0], skip_special_tokens=True))
+
+            final_translation = " ".join(translations)
 
             # Create a thread for the translation
             thread_title = f"Translation: {source_lang} -> {target_lang}"
@@ -225,14 +233,13 @@ async def on_message(message):
 
             # Iterate over the list of thread members and remove all non-bot users
             for member in translation_thread.members:
-                await message.channel.send(f"Member: {member}")
                 if member.id != bot.user.id:  # Skip the bot itself
                     try:
                         await translation_thread.remove_user(member)
                     except Exception as e:
                         print(f"Failed to remove {member.name} from thread: {e}")
 
-            await translation_thread.send(f"Translated message: {translation}")
+            await translation_thread.send(f"Translated message: {final_translation}")
 
         except LangDetectException:
             await message.channel.send("Could not detect the language of the input text. Skipping.")
@@ -339,12 +346,20 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
             await ctx.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded or is unsupported. Try setting a source and target language manually.")
             return
 
-        # Tokenize and translate
-        inputs = tokenizer(text, return_tensors="pt", padding=True)
-        translated = model.generate(**inputs)
-        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+        # Sentence segmentation
+        sentences = sent_tokenize(text)
+        translations = []
 
-        await ctx.send(f"Translation ({source_lang} -> {target_lang}): {translation}")
+        for sentence in sentences:
+            inputs = tokenizer(sentence, return_tensors="pt", padding=True)
+            translated = model.generate(**inputs)
+            translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+            translations.append(translation)
+
+        # Combine translations
+        final_translation = " ".join(translations)
+
+        await ctx.send(f"Translation ({source_lang} -> {target_lang}): {final_translation}")
     except LangDetectException:
         await ctx.send("Could not detect the language of the input text. Please try again.")
     except Exception as e:
