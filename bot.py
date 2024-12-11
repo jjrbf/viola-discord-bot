@@ -18,6 +18,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 model_cache = {}
 default_languages = {}
 active_translations = {}  # Track active translation modes by channel
+error_threads = {}  # Store error threads to allow retries
 
 def get_model_and_tokenizer(source_lang, target_lang):
     """Retrieve the model and tokenizer from the cache or load them if not cached."""
@@ -59,12 +60,81 @@ async def stoplivetranslation(ctx):
     else:
         await ctx.send("Live translation mode is not active in this channel.")
 
+async def retry_translation(thread, original_message, retry_language_code, target_lang):
+    """
+    Retry translation with a new source language code.
+    """
+    try:
+        text_to_translate = original_message
+        await thread.send(f"Text to translate: {original_message}")
+        if not text_to_translate:
+            await thread.send("Could not find text to translate.")
+            return
+
+        # Load the new model
+        model_name = f"Helsinki-NLP/opus-mt-{retry_language_code}-{target_lang}"
+        tokenizer = MarianTokenizer.from_pretrained(model_name)
+        model = MarianMTModel.from_pretrained(model_name)
+
+        # Perform the translation
+        inputs = tokenizer(text_to_translate, return_tensors="pt", padding=True)
+        translated = model.generate(**inputs)
+        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+
+        # Rename the thread to include the updated source and target languages
+        new_thread_name = f"Translation: {retry_language_code} -> {target_lang}"
+        await thread.edit(name=new_thread_name)
+
+        await thread.send(f"Retry Translation ({retry_language_code} -> {target_lang}): {translation}")
+    except Exception as e:
+        await thread.send(f"Retry failed with error: {e}")
+
 @bot.event
 async def on_message(message):
     """Listen for messages and translate them in live translation mode."""
+    # Skip if the message is from the bot
     if message.author == bot.user:
         return
 
+    # Process bot commands first
+    if message.content.startswith("!"):
+        await bot.process_commands(message)
+        return
+
+    # Check if the message is in a thread
+    if isinstance(message.channel, discord.Thread):
+        # Check if the thread's name starts with "Translation"
+        if message.channel.name.startswith("Translation:") or message.channel.name.startswith("Error: Translation model for"):
+            # If the message is a language code, retry translation
+            if len(message.content) == 2:  # Language codes are typically 2 characters
+                retry_language_code = message.content.lower()
+                parent_message_id = message.channel.id
+                try:
+                    # Fetch the first message in the thread
+                    async for thread_message in message.channel.history(limit=2, oldest_first=True):
+                        # This should be the first message in the thread
+                        if "Translating: " in thread_message.content:
+                            first_message = thread_message.content.split("Translating: ")[1]
+                    # Fetch the second message in the thread
+                    async for thread_message in message.channel.history(limit=3, oldest_first=True):
+                        # Check if the message contains an error message for translation failure
+                        if "Translation model for" in thread_message.content:
+                            # Extract the target language from the error message (e.g., "Translation model for so -> en")
+                            target_lang = thread_message.content.split("->")[-1].strip().split()[0]
+                            
+                            # Proceed with retrying the translation with the extracted target language
+                            await retry_translation(
+                                thread=message.channel,
+                                original_message=first_message,  # This is the first message in the thread
+                                retry_language_code=retry_language_code,
+                                target_lang=target_lang,  # Set the correct target language from the error
+                            )
+                            return
+                except Exception as e:
+                    await message.channel.send(f"Error handling retry: {e}")
+                    return
+
+    # Check if live translation is active for the channel
     channel_id = message.channel.id
     if channel_id in active_translations:
         target_lang = active_translations[channel_id]
@@ -78,7 +148,11 @@ async def on_message(message):
             # Get the model and tokenizer
             model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
             if model is None or tokenizer is None:
-                await message.channel.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded.")
+                error_msg = f"Translation model for {source_lang} -> {target_lang} could not be loaded."
+                error_thread = await message.create_thread(name=f"Error: {error_msg}")
+                await error_thread.send(f"Translating: {message.content}")
+                await error_thread.send(f"{error_msg}\n\nReply to this message with a new source language (e.g., 'en').")
+                error_threads[message.id] = error_thread
                 return
 
             # Translate the message
@@ -86,10 +160,24 @@ async def on_message(message):
             translated = model.generate(**inputs)
             translation = tokenizer.decode(translated[0], skip_special_tokens=True)
 
-            # Create a thread with the translation
+            # Create a thread for the translation
             thread_title = f"Translation: {source_lang} -> {target_lang}"
-            translation_thread = await message.create_thread(name=thread_title)
+            translation_thread = await message.create_thread(name=thread_title, auto_archive_duration=60)
+
+            # Ensure the bot is explicitly added as a thread member
+            await translation_thread.add_user(bot.user)
+
+            # Iterate over the list of thread members and remove all non-bot users
+            for member in translation_thread.members:
+                await message.channel.send(f"Member: {member}")
+                if member.id != bot.user.id:  # Skip the bot itself
+                    try:
+                        await translation_thread.remove_user(member)
+                    except Exception as e:
+                        print(f"Failed to remove {member.name} from thread: {e}")
+
             await translation_thread.send(f"Translated message: {translation}")
+
         except LangDetectException:
             await message.channel.send("Could not detect the language of the input text. Skipping.")
         except Exception as e:
@@ -97,6 +185,33 @@ async def on_message(message):
 
     # Ensure other bot commands are processed
     await bot.process_commands(message)
+
+@bot.event
+async def on_message_edit(before, after):
+    """Handle editing of messages and retry translation if necessary."""
+    if after.id in error_threads:
+        error_thread = error_threads[after.id]
+        # Check if the edited message is a valid retry attempt
+        if after.content:
+            try:
+                # Retry translation
+                source_lang = detect(after.content)
+                target_lang = active_translations.get(after.channel.id, None)
+                if target_lang:
+                    model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
+                    if model is None or tokenizer is None:
+                        await error_thread.send(f"Model for {source_lang} -> {target_lang} could not be loaded. Try a different source language.")
+                        return
+
+                    # Translate and send the result
+                    inputs = tokenizer(after.content, return_tensors="pt", padding=True)
+                    translated = model.generate(**inputs)
+                    translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+                    await error_thread.send(f"Translated message: {translation}")
+                    # Remove the error thread as the retry succeeded
+                    del error_threads[after.id]
+            except Exception as e:
+                await error_thread.send(f"Error retrying translation: {e}")
 
 @bot.command()
 async def setlanguage(ctx, target_lang: str):
