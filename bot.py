@@ -88,6 +88,9 @@ async def translate(interaction: discord.Interaction, text: str, source_lang: st
         # If no source language is provided, detect it
         if source_lang is None:
             source_lang = detect(text)
+            # Normalize Chinese language codes
+            if source_lang in ["zh-cn", "zh-tw"]:
+                source_lang = "zh"
 
         # If the detected source language is the same as the target language
         if source_lang == target_lang:
@@ -201,6 +204,9 @@ async def on_message(message):
 
         try:
             source_lang = detect(message.content)
+            # Normalize Chinese language codes
+            if source_lang in ["zh-cn", "zh-tw"]:
+                source_lang = "zh"
             if source_lang == target_lang:
                 return
 
@@ -290,6 +296,9 @@ async def on_message_edit(before, after):
             try:
                 # Retry translation
                 source_lang = detect(after.content)
+                # Normalize Chinese language codes
+                if source_lang in ["zh-cn", "zh-tw"]:
+                    source_lang = "zh"
                 target_lang = active_translations.get(after.channel.id, None)
                 if target_lang:
                     model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
@@ -333,6 +342,9 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
         # If no source language is provided, detect it
         if source_lang is None:
             source_lang = detect(text)
+            # Normalize Chinese language codes
+            if source_lang in ["zh-cn", "zh-tw"]:
+                source_lang = "zh"
             await ctx.send(f"Detected source language: {source_lang}")
 
         # If the detected source language is the same as the target language
