@@ -116,6 +116,15 @@ async def translate(interaction: discord.Interaction, text: str, source_lang: st
             f"Error: {e}"
         )
 
+# Slash command: /languagecodes
+@bot.tree.command(name="languagecodes", description="View all supported language codes and their corresponding languages.")
+async def languagecodes(interaction: discord.Interaction):
+    formatted_codes = format_language_codes()
+    await interaction.response.send_message(
+        f"Supported Language Codes:\n{formatted_codes}",
+        ephemeral=True
+    )
+
 # Command: Start live translation
 @bot.command()
 async def startlivetranslation(ctx, target_lang: str):
@@ -340,6 +349,43 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
         await ctx.send("Could not detect the language of the input text. Please try again.")
     except Exception as e:
         await ctx.send(f"Error: {e}")
+
+# List of supported language codes and their respective languages for MarianMT
+LANGUAGE_CODES = {
+    "en": "English",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "it": "Italian",
+    "ru": "Russian",
+    "zh": "Chinese (Simplified)",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "pt": "Portuguese",
+    "nl": "Dutch",
+    "sv": "Swedish",
+    "pl": "Polish",
+    "fi": "Finnish",
+    "tr": "Turkish",
+    "cs": "Czech",
+    "hu": "Hungarian",
+    "ro": "Romanian",
+    "tl": "Tagalog",
+    "th": "Thai",
+    "id": "Indonesian",
+    "hi": "Hindi",
+}
+
+def format_language_codes():
+    """Format the language codes into a readable string."""
+    return "\n".join([f"`{code}`: {language}" for code, language in LANGUAGE_CODES.items()])
+
+# Bot command: !languagecodes
+@bot.command(name="languagecodes")
+async def languagecodes_command(ctx):
+    formatted_codes = format_language_codes()
+    await ctx.send(f"Supported Language Codes:\n{formatted_codes}")
 
 # Run the bot
 if __name__ == "__main__":
