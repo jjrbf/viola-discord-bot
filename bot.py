@@ -387,6 +387,39 @@ async def languagecodes_command(ctx):
     formatted_codes = format_language_codes()
     await ctx.send(f"Supported Language Codes:\n{formatted_codes}")
 
+# Help message content
+HELP_MESSAGE = """
+## **Hello, I'm vioLa, a translation Discord Bot!**
+
+### **Slash Commands (output only to you!):**
+1. `/setlanguage <target_lang>`: Set your default target language for translations.
+2. `/translate <text> [source_lang] [target_lang]`: Translate a specific text with optional source and target languages. Omitting the `[source_lang]` method will detect the language for you, while omitting the `[target_lang]` will default it to your set language.
+3. `/languagecodes`: View all supported language codes and their corresponding languages privately.
+4. `/help`: Display this help message privately.
+### **Bot Commands (outputs to the whole server!):**
+1. `!translate <text> [source_lang] [target_lang]`: Same thing as above, but publicly! Reply to a message without the `<text>` to translate that message.
+2. `!startlivetranslation <target_lang>`: Start live translation mode in the current channel. Messages will be translated to the specified target language.
+3. `!stoplivetranslation`: Stop live translation mode in the current channel.
+4. `!languagecodes`: View all supported language codes and their corresponding languages publicly.
+5. `!help`: Display this help message publicly.
+### **Live Translation:**
+- When live translation is active, all messages in the channel will be translated to the set target language.
+- Error threads will guide users to retry with the correct source language if an issue arises.
+### **Retry Translations:**
+- Respond to error threads with a language code to retry translations if the initial attempt fails.
+"""
+
+# Override the default help command
+bot.remove_command('help')  # Remove the default help command
+@bot.command(name="help", help="Displays a list of bot functionalities.")
+async def custom_help(ctx):
+    await ctx.send(HELP_MESSAGE)
+
+# Slash command: /help
+@bot.tree.command(name="help", description="Display the bot's functionalities and commands.")
+async def help_command(interaction: discord.Interaction):
+    await interaction.response.send_message(HELP_MESSAGE, ephemeral=True)
+
 # Run the bot
 if __name__ == "__main__":
     try:
