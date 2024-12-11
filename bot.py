@@ -22,23 +22,32 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 current_model = None
 current_tokenizer = None
 default_languages = {}  # Store default target languages for each user
+model_cache = {} # Cache for storing models and tokenizers
 
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")
 
-def load_model_and_tokenizer(source_lang, target_lang):
-    """Load the model and tokenizer for the specified language pair."""
-    global current_model, current_tokenizer
+def get_model_and_tokenizer(source_lang, target_lang):
+    """Retrieve the model and tokenizer from the cache or load them if not cached."""
+    global model_cache
+    model_key = f"{source_lang}-{target_lang}"
+
+    # Check if the model is already in the cache
+    if model_key in model_cache:
+        return model_cache[model_key]
+
+    # Load the model and tokenizer
     model_name = f"Helsinki-NLP/opus-mt-{source_lang}-{target_lang}"
     try:
-        current_tokenizer = MarianTokenizer.from_pretrained(model_name)
-        current_model = MarianMTModel.from_pretrained(model_name)
-        print(f"Loaded model for {source_lang} to {target_lang}.")
-        return True
+        tokenizer = MarianTokenizer.from_pretrained(model_name)
+        model = MarianMTModel.from_pretrained(model_name)
+        model_cache[model_key] = (model, tokenizer)  # Cache the model and tokenizer
+        print(f"Loaded and cached model for {source_lang} -> {target_lang}.")
+        return model, tokenizer
     except Exception as e:
         print(f"Error loading model {model_name}: {e}")
-        return False
+        return None, None
 
 @bot.command()
 async def setlanguage(ctx, target_lang: str):
@@ -80,15 +89,16 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
             await ctx.send("The text is already in the target language.")
             return
 
-        # Load the appropriate model
-        if not load_model_and_tokenizer(source_lang, target_lang):
+        # Get the model and tokenizer (using the cache)
+        model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
+        if model is None or tokenizer is None:
             await ctx.send(f"Translation model for {source_lang} -> {target_lang} could not be loaded.")
             return
 
         # Tokenize and translate
-        inputs = current_tokenizer(text, return_tensors="pt", padding=True)
-        translated = current_model.generate(**inputs)
-        translation = current_tokenizer.decode(translated[0], skip_special_tokens=True)
+        inputs = tokenizer(text, return_tensors="pt", padding=True)
+        translated = model.generate(**inputs)
+        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
 
         await ctx.send(f"Translation ({source_lang} -> {target_lang}): {translation}")
     except LangDetectException:
