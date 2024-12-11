@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
+from discord import app_commands
 from transformers import MarianMTModel, MarianTokenizer
 from langdetect import detect, LangDetectException
 
@@ -14,11 +15,15 @@ intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Cache for storing models and tokenizers
+# Caching for translation models
 model_cache = {}
+
+# Active live translation settings
+active_translations = {}
+error_threads = {}
+
+# Default target languages for users
 default_languages = {}
-active_translations = {}  # Track active translation modes by channel
-error_threads = {}  # Store error threads to allow retries
 
 def get_model_and_tokenizer(source_lang, target_lang):
     """Retrieve the model and tokenizer from the cache or load them if not cached."""
@@ -41,8 +46,77 @@ def get_model_and_tokenizer(source_lang, target_lang):
 
 @bot.event
 async def on_ready():
-    print(f"We have logged in as {bot.user}")
+    print(f"Logged in as {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
 
+# Slash command: Set language
+@bot.tree.command(name="setlanguage", description="Set your default target language.")
+async def setlanguage(interaction: discord.Interaction, target_lang: str):
+    user_id = interaction.user.id
+    default_languages[user_id] = target_lang
+    await interaction.response.send_message(
+        f"Default target language set to: {target_lang}", ephemeral=True
+    )
+
+@bot.tree.command(name="translate", description="Translate text with optional source and target languages.")
+async def translate(interaction: discord.Interaction, text: str, source_lang: str = None, target_lang: str = None):
+    """vioLa will translate a message for you."""
+    user_id = interaction.user.id
+
+    # Defer the response to allow more processing time
+    await interaction.response.defer(ephemeral=True)
+
+    # Use user's default target language if no target language is provided
+    if target_lang is None:
+        target_lang = default_languages.get(user_id)
+        if target_lang is None:
+            await interaction.followup.send(
+                "Please set a default target language using `/setlanguage <target_lang>` or specify a target language."
+            )
+            return
+
+    try:
+        # If no source language is provided, detect it
+        if source_lang is None:
+            source_lang = detect(text)
+
+        # If the detected source language is the same as the target language
+        if source_lang == target_lang:
+            await interaction.followup.send(
+                "The text is already in the target language."
+            )
+            return
+
+        # Get the model and tokenizer (using the cache)
+        model, tokenizer = get_model_and_tokenizer(source_lang, target_lang)
+        if model is None or tokenizer is None:
+            await interaction.followup.send(
+                f"Translation model for {source_lang} -> {target_lang} could not be loaded."
+            )
+            return
+
+        # Tokenize and translate
+        inputs = tokenizer(text, return_tensors="pt", padding=True)
+        translated = model.generate(**inputs)
+        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+
+        await interaction.followup.send(
+            f"Translation ({source_lang} -> {target_lang}): {translation}"
+        )
+    except LangDetectException:
+        await interaction.followup.send(
+            "Could not detect the language of the input text. Please try again."
+        )
+    except Exception as e:
+        await interaction.followup.send(
+            f"Error: {e}"
+        )
+
+# Command: Start live translation
 @bot.command()
 async def startlivetranslation(ctx, target_lang: str):
     """Start live translation mode in the current channel."""
@@ -50,6 +124,7 @@ async def startlivetranslation(ctx, target_lang: str):
     active_translations[channel_id] = target_lang
     await ctx.send(f"Live translation mode activated. Messages will be translated to {target_lang}.")
 
+# Command: Stop live translation
 @bot.command()
 async def stoplivetranslation(ctx):
     """Stop live translation mode in the current channel."""
@@ -60,35 +135,7 @@ async def stoplivetranslation(ctx):
     else:
         await ctx.send("Live translation mode is not active in this channel.")
 
-async def retry_translation(thread, original_message, retry_language_code, target_lang):
-    """
-    Retry translation with a new source language code.
-    """
-    try:
-        text_to_translate = original_message
-        await thread.send(f"Text to translate: {original_message}")
-        if not text_to_translate:
-            await thread.send("Could not find text to translate.")
-            return
-
-        # Load the new model
-        model_name = f"Helsinki-NLP/opus-mt-{retry_language_code}-{target_lang}"
-        tokenizer = MarianTokenizer.from_pretrained(model_name)
-        model = MarianMTModel.from_pretrained(model_name)
-
-        # Perform the translation
-        inputs = tokenizer(text_to_translate, return_tensors="pt", padding=True)
-        translated = model.generate(**inputs)
-        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
-
-        # Rename the thread to include the updated source and target languages
-        new_thread_name = f"Translation: {retry_language_code} -> {target_lang}"
-        await thread.edit(name=new_thread_name)
-
-        await thread.send(f"Retry Translation ({retry_language_code} -> {target_lang}): {translation}")
-    except Exception as e:
-        await thread.send(f"Retry failed with error: {e}")
-
+# Event: Process live translations
 @bot.event
 async def on_message(message):
     """Listen for messages and translate them in live translation mode."""
@@ -186,6 +233,37 @@ async def on_message(message):
     # Ensure other bot commands are processed
     await bot.process_commands(message)
 
+# Retry translation in error threads
+async def retry_translation(thread, original_message, retry_language_code, target_lang):
+    """
+    Retry translation with a new source language code.
+    """
+    try:
+        text_to_translate = original_message
+        await thread.send(f"Text to translate: {original_message}")
+        if not text_to_translate:
+            await thread.send("Could not find text to translate.")
+            return
+
+        # Load the new model
+        model_name = f"Helsinki-NLP/opus-mt-{retry_language_code}-{target_lang}"
+        tokenizer = MarianTokenizer.from_pretrained(model_name)
+        model = MarianMTModel.from_pretrained(model_name)
+
+        # Perform the translation
+        inputs = tokenizer(text_to_translate, return_tensors="pt", padding=True)
+        translated = model.generate(**inputs)
+        translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+
+        # Rename the thread to include the updated source and target languages
+        new_thread_name = f"Translation: {retry_language_code} -> {target_lang}"
+        await thread.edit(name=new_thread_name)
+
+        await thread.send(f"Retry Translation ({retry_language_code} -> {target_lang}): {translation}")
+    except Exception as e:
+        await thread.send(f"Retry failed with error: {e}")
+
+# Event: Message edit for retrying translation
 @bot.event
 async def on_message_edit(before, after):
     """Handle editing of messages and retry translation if necessary."""
@@ -214,13 +292,6 @@ async def on_message_edit(before, after):
                 await error_thread.send(f"Error retrying translation: {e}")
 
 @bot.command()
-async def setlanguage(ctx, target_lang: str):
-    """Set the default target language for translations."""
-    user_id = ctx.author.id
-    default_languages[user_id] = target_lang
-    await ctx.send(f"Default target language set to: {target_lang}")
-
-@bot.command()
 async def translate(ctx, source_lang: str = None, target_lang: str = None, *, text: str = None):
     """Translate a message with optional source and target languages."""
     user_id = ctx.author.id
@@ -229,7 +300,7 @@ async def translate(ctx, source_lang: str = None, target_lang: str = None, *, te
     if target_lang is None:
         target_lang = default_languages.get(user_id)
         if target_lang is None:
-            await ctx.send("Please set a default target language using `!setlanguage <target_lang>` or specify a target language in the command.")
+            await ctx.send("Please set a default target language using !setlanguage <target_lang> or specify a target language in the command.")
             return
 
     # If the command is a reply, get the original message
