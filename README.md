@@ -47,3 +47,10 @@ A few things to keep in mind:
   By using vioLa, you acknowledge that translations and custom configurations are at your own risk. vioLa's creators aren't responsible for misinterpretations or misuse of translations.
 - **Opt-Out Options**:  
   If you don't want your messages translated during live translation mode, let your server moderators know or avoid posting in channels where vioLa is active.
+## Acknowledgments  
+This project uses the MarianMT model:  
+
+MarianNMT Team. *Marian: Fast Neural Machine Translation in C++*. Licensed under the MIT License. Available at [https://marian-nmt.github.io](https://marian-nmt.github.io)  
+
+Additionally, MarianMT relies on datasets from the OPUS project:  
+Tiedemann, J. (2012). *Parallel Data, Tools, and Interfaces in OPUS*. In Proceedings of the 8th International Conference on Language Resources and Evaluation (LREC'2012), Istanbul, Turkey. Available at [https://opus.nlpl.eu](https://opus.nlpl.eu)  
