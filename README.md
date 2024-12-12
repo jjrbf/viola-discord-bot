@@ -7,7 +7,7 @@ Created for IAT 360's final project. vioLa uses MarianMT to translate between la
 - Make sure you give vioLa the permissions it wants!
 
 ## Commands & Functionalities
-***<argument> = required | [argument] optional***
+***< argument > = required | [ argument ] optional***
 ### **Slash Commands (outputs only to you!):**
 1. `/setlanguage <target_lang>`: Set your default target language for translations.
 2. `/translate <text> [source_lang] [target_lang]`: Translate a specific text with optional source and target languages. Omitting the `[source_lang]` method will detect the language for you, while omitting the `[target_lang]` will default it to your set language.
